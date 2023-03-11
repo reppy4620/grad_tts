@@ -184,7 +184,7 @@ class Unet(nn.Module):
         init_dim=None,
         out_dim=None,
         dim_mults=(1, 2, 4, 8),
-        channels=3,
+        channels=1,
         self_condition=False,
         resnet_block_groups=4,
     ):
@@ -201,7 +201,7 @@ class Unet(nn.Module):
         dims = [init_dim, *map(lambda m: dim * m, dim_mults)]
         in_out = list(zip(dims[:-1], dims[1:]))
 
-        block_klass = partial(ResnetBlock, groups=resnet_block_groups)
+        block_class = partial(ResnetBlock, groups=resnet_block_groups)
 
         # time embeddings
         time_dim = dim * 4
@@ -224,8 +224,8 @@ class Unet(nn.Module):
             self.downs.append(
                 nn.ModuleList(
                     [
-                        block_klass(dim_in, dim_in, time_emb_dim=time_dim),
-                        block_klass(dim_in, dim_in, time_emb_dim=time_dim),
+                        block_class(dim_in, dim_in, time_emb_dim=time_dim),
+                        block_class(dim_in, dim_in, time_emb_dim=time_dim),
                         Residual(PreNorm(dim_in, LinearAttention(dim_in))),
                         Downsample(dim_in, dim_out)
                         if not is_last
@@ -235,9 +235,9 @@ class Unet(nn.Module):
             )
 
         mid_dim = dims[-1]
-        self.mid_block1 = block_klass(mid_dim, mid_dim, time_emb_dim=time_dim)
+        self.mid_block1 = block_class(mid_dim, mid_dim, time_emb_dim=time_dim)
         self.mid_attn = Residual(PreNorm(mid_dim, LinearAttention(mid_dim)))
-        self.mid_block2 = block_klass(mid_dim, mid_dim, time_emb_dim=time_dim)
+        self.mid_block2 = block_class(mid_dim, mid_dim, time_emb_dim=time_dim)
 
         for ind, (dim_in, dim_out) in enumerate(reversed(in_out)):
             is_last = ind == (len(in_out) - 1)
@@ -245,8 +245,8 @@ class Unet(nn.Module):
             self.ups.append(
                 nn.ModuleList(
                     [
-                        block_klass(dim_out + dim_in, dim_out, time_emb_dim=time_dim),
-                        block_klass(dim_out + dim_in, dim_out, time_emb_dim=time_dim),
+                        block_class(dim_out + dim_in, dim_out, time_emb_dim=time_dim),
+                        block_class(dim_out + dim_in, dim_out, time_emb_dim=time_dim),
                         Residual(PreNorm(dim_out, LinearAttention(dim_out))),
                         Upsample(dim_out, dim_in)
                         if not is_last
@@ -257,7 +257,7 @@ class Unet(nn.Module):
 
         self.out_dim = default(out_dim, channels)
 
-        self.final_res_block = block_klass(dim * 2, dim, time_emb_dim=time_dim)
+        self.final_res_block = block_class(dim * 2, dim, time_emb_dim=time_dim)
         self.final_conv = nn.Conv2d(dim, self.out_dim, 1)
 
     def forward(self, x, time, mask, x_self_cond=None):
@@ -330,15 +330,15 @@ class Decoder(nn.Module):
             y *= mask
             return y.cpu().numpy().reshape((-1,)).astype(np.float64)
         
-        res = solve_ivp(ode_func, (1., 1e-5), x.reshape((-1,)).cpu().numpy(), method=method)
+        res = solve_ivp(ode_func, (1., 1e-3), x.reshape((-1,)).cpu().numpy(), method=method)
         x = torch.tensor(res.y[:, -1], device=device).reshape(shape)
         return x
 
     def compute_loss(self, x_0, mu, mask):
-        t = torch.empty((x_0.shape[0],), device=x_0.device).uniform_(1e-5, 1)
+        t = torch.empty((x_0.shape[0],), device=x_0.device).uniform_(1e-3, 1)
         mean, std = self.sde.marginal_prob(x_0, mu, t)
-        z = torch.randn_like(x_0)
-        x_t = mean + std * z
+        z = torch.randn_like(x_0) * mask
+        x_t = (mean + std * z) * mask
         score = self.unet(x_t, t, mask, x_self_cond=mu)
-        loss = F.mse_loss(score * std, z, reduction='sum') / self.mel_dim / mask.sum()
+        loss = torch.sum((score * std + z) ** 2 * mask) / self.mel_dim / mask.sum()
         return loss

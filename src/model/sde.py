@@ -1,13 +1,13 @@
 import torch
 
 class SDE:
-    def __init__(self, beta_min=0.1, beta_max=20):
+    def __init__(self, beta_min=0.05, beta_max=20):
         self.beta_0 = beta_min
         self.beta_1 = beta_max
 
     def sde(self, x_t, mu, t):
         beta_t = self.beta_0 + (self.beta_1 - self.beta_0) * t
-        drift = 0.5 * beta_t[:, None, None, None] * (mu - x_t)
+        drift = 0.5 * (mu - x_t) * beta_t[:, None, None, None]
         diffusion = torch.sqrt(beta_t)[:, None, None, None]
         return drift, diffusion
     
@@ -18,13 +18,14 @@ class SDE:
         std = torch.sqrt(1. - torch.exp(-beta_int))[:, None, None, None]
         return mean, std
 
-    def reverse_sde(self, score, x, mu, t):
-        drift, diffusion = self.sde(x, mu, t)
-        drift = drift - (diffusion ** 2) * score
+    def reverse_sde(self, score, x_t, mu, t):
+        beta_t = self.beta_0 + (self.beta_1 - self.beta_0) * t
+        drift = (0.5 * (mu - x_t) - score) * beta_t[:, None, None, None]
+        diffusion = beta_t[:, None, None, None]
         return drift, diffusion
 
-    def probability_flow(self, score, x, mu, t):
-        drift, diffusion = self.sde(x, mu, t)
-        drift = drift - 0.5 * (diffusion ** 2) * score
+    def probability_flow(self, score, x_t, mu, t):
+        beta_t = self.beta_0 + (self.beta_1 - self.beta_0) * t
+        drift = 0.5 * (mu - x_t - score) * beta_t[:, None, None, None]
         diffusion = torch.zeros_like(diffusion)
         return drift, diffusion
