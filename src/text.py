@@ -133,7 +133,7 @@ def text_to_phoneme(text):
     return pyopenjtalk.g2p(text)
 
 
-def phoneme_to_sequence(phoneme, num_state=1):
+def phoneme_to_sequence(phoneme):
     """Convert phoneme + prosody symbols to sequence of numbers
     Args:
         text (list): text as a list of phoneme + prosody symbols
@@ -144,17 +144,7 @@ def phoneme_to_sequence(phoneme, num_state=1):
         >>> text_to_sequence(["^", "m", "i", "[", "z","o", "$"])
         >>> [1, 31, 27, 6, 49, 35, 2]
     """
-    if num_state == 1:
-        return [_symbol_to_id[s] for s in phoneme]
-    else:
-        id_list = []
-        for s in phoneme:
-            i = _symbol_to_id[s]
-            if s not in ['a', 'i', 'u', 'e', 'o']:
-                id_list.append(i)
-            else:
-                id_list.extend([i, i, i])
-        return id_list
+    return [_symbol_to_id[s] for s in phoneme]
 
 
 def sequence_to_phoneme(seq):

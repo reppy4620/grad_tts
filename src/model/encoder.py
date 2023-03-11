@@ -195,6 +195,7 @@ class Encoder(nn.Module):
     def __init__(self, num_vocab, channels, out_channels, num_head, num_layers, kernel_size, dropout):
         super().__init__()
         self.emb = nn.Embedding(num_vocab, channels)
+        torch.nn.init.normal_(self.emb.weight, 0.0, channels**-0.5)
         self.scale = math.sqrt(channels)
 
         self.prenet = PreNet(channels)
