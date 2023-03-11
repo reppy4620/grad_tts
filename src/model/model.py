@@ -32,12 +32,11 @@ class TTSModel(nn.Module):
         attn_path = generate_path(duration.squeeze(1), path_mask.squeeze(1))
         m = x @ attn_path
         y_lengths_max = (y_lengths.max() // self.decoder.scale) * self.decoder.scale
-        x = x[..., :y_lengths_max]
         m = m[..., :y_lengths_max]
         y_mask = y_mask[..., :y_lengths_max]
         x = m + torch.randn_like(m)
         o = self.decoder(x.unsqueeze(1), m.unsqueeze(1), y_mask.unsqueeze(1))
-        return o
+        return o, m
 
     def compute_loss(self, batch):
         (

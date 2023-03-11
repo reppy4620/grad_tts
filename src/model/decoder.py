@@ -1,5 +1,4 @@
 import math
-import random
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -327,7 +326,8 @@ class Decoder(nn.Module):
             x_t = torch.tensor(x_t, device=device, dtype=torch.float).reshape(shape)
             t = torch.full(size=(b,), fill_value=t, device=device, dtype=torch.float)
             score = self.unet(x_t, t, mask, x_self_cond=mu)
-            y = self.sde.probability_flow(score, x_t, mu, t)
+            y, _ = self.sde.probability_flow(score, x_t, mu, t)
+            y *= mask
             return y.cpu().numpy().reshape((-1,)).astype(np.float64)
         
         res = solve_ivp(ode_func, (1., 1e-5), x.reshape((-1,)).cpu().numpy(), method=method)

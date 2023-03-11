@@ -138,6 +138,38 @@ class FFNLayer(nn.Module):
         y = self.dropout(y)
         x = self.norm(x + y)
         return x
+
+
+class PreNetLayer(nn.Module):
+    def __init__(self, channels, kernel_size=5, dropout=0.5):
+        super().__init__()
+        self.conv = nn.Conv1d(channels, channels, kernel_size, padding=kernel_size//2)
+        self.norm = LayerNorm(channels)
+        self.act = nn.GELU()
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x, mask):
+        x = self.conv(x * mask)
+        x = self.norm(x)
+        x = self.act(x)
+        x = self.dropout(x)
+        return x * mask
+
+
+class PreNet(nn.Module):
+    def __init__(self, channels, kernel_size=5, dropout=0.5, num_layers=3):
+        super().__init__()
+        self.layers = nn.ModuleList([
+            PreNetLayer(channels, kernel_size, dropout)
+            for _ in range(num_layers)
+        ])
+
+    def forward(self, x, mask):
+        residual = x
+        for layer in self.layers:
+            x = layer(x, mask)
+        x = residual + x
+        return x * mask
     
 
 class EncoderLayer(nn.Module):
@@ -165,6 +197,7 @@ class Encoder(nn.Module):
         self.emb = nn.Embedding(num_vocab, channels)
         self.scale = math.sqrt(channels)
 
+        self.prenet = PreNet(channels)
         self.layers = nn.ModuleList([
             EncoderLayer(
                 channels,
@@ -179,7 +212,7 @@ class Encoder(nn.Module):
         x = self.emb(x) * self.scale
         x = torch.transpose(x, 1, -1)
         attn_mask = mask.unsqueeze(2) * mask.unsqueeze(-1)
-        x = x * mask
+        x = self.prenet(x, mask)
         for layer in self.layers:
             x = layer(x, mask, attn_mask)
         o = self.postnet(x) * mask

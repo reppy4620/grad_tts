@@ -1,6 +1,7 @@
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from torch.nn.utils import clip_grad_norm_
 from pathlib import Path
 from argparse import ArgumentParser
 from tqdm import tqdm
@@ -56,6 +57,7 @@ def main(args):
             loss_dict = handle_batch(batch)
             loss = loss_dict['loss']
             loss.backward()
+            _ = clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             tracker.update(**{f'train_{k}': v.item() for k, v in loss_dict.items()})
             s = ', '.join(f'{k.split("_")[1]}: {v.mean():.5f}' for k, v in tracker.items())

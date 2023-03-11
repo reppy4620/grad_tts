@@ -17,8 +17,9 @@ def main(args):
 
     output_dir = Path(args.output_dir)
     mel_dir = output_dir / 'mel'
+    mean_dir = output_dir / 'mean'
     plot_dir = output_dir / 'plot'
-    [d.mkdir(parents=True, exist_ok=True) for d in [mel_dir, plot_dir]]
+    [d.mkdir(parents=True, exist_ok=True) for d in [mel_dir, mean_dir, plot_dir]]
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = TTSModel(cfg.model).to(device).eval()
@@ -45,11 +46,15 @@ def main(args):
         bar.set_description_str(bname)
         x, x_lengths = to_device(x, x_lengths)
         with torch.no_grad():
-            mel = model(x, x_lengths)
+            mel, mean = model(x, x_lengths)
         mel = mel.squeeze().cpu().numpy()
+        mean = mean.squeeze().cpu().numpy()
         np.save(mel_dir / f'{bname}.npy', mel)
+        np.save(mean_dir / f'{bname}.npy', mean)
 
-        plt.imshow(mel, origin='lower', aspect='auto')
+        fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+        ax[0].imshow(mel, origin='lower', aspect='auto')
+        ax[1].imshow(mean, origin='lower', aspect='auto')
         plt.savefig(plot_dir / f'{bname}.png')
         plt.close()
         break
