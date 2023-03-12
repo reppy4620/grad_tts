@@ -27,5 +27,5 @@ class SDE:
     def probability_flow(self, score, x_t, mu, t):
         beta_t = self.beta_0 + (self.beta_1 - self.beta_0) * t
         drift = 0.5 * (mu - x_t - score) * beta_t[:, None, None, None]
-        diffusion = torch.zeros_like(diffusion)
+        diffusion = torch.zeros_like(drift)
         return drift, diffusion

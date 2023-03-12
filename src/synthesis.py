@@ -52,9 +52,9 @@ def main(args):
         np.save(mel_dir / f'{bname}.npy', mel)
         np.save(mean_dir / f'{bname}.npy', mean)
 
-        fig, ax = plt.subplots(1, 2, figsize=(12, 6))
-        ax[0].imshow(mel, origin='lower', aspect='auto')
-        ax[1].imshow(mean, origin='lower', aspect='auto')
+        fig, ax = plt.subplots(2, 1, figsize=(12, 8))
+        ax[0].imshow(mean, origin='lower', aspect='auto')
+        ax[1].imshow(mel, origin='lower', aspect='auto')
         plt.savefig(plot_dir / f'{bname}.png')
         plt.close()
         break
