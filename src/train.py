@@ -1,6 +1,8 @@
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from torch import autocast
+from torch.cuda.amp import GradScaler
 from torch.nn.utils import clip_grad_norm_
 from pathlib import Path
 from argparse import ArgumentParser
@@ -23,12 +25,13 @@ def main(args):
     model = TTSModel(cfg.model).to(device)
 
     train_ds = TextMelDataset(args.train_file, args.wav_dir, args.lab_dir, cfg.mel)
-    train_dl = DataLoader(train_ds, batch_size=cfg.train.batch_size, shuffle=True, collate_fn=collate_fn, num_workers=4)
+    train_dl = DataLoader(train_ds, batch_size=cfg.train.batch_size, shuffle=True, collate_fn=collate_fn, num_workers=8)
 
     valid_ds = TextMelDataset(args.valid_file, args.wav_dir, args.lab_dir, cfg.mel)
-    valid_dl = DataLoader(valid_ds, batch_size=cfg.train.batch_size, shuffle=False, collate_fn=collate_fn, num_workers=4)
+    valid_dl = DataLoader(valid_ds, batch_size=cfg.train.batch_size, shuffle=False, collate_fn=collate_fn, num_workers=8)
 
     optimizer = optim.AdamW(model.parameters(), lr=cfg.optimizer.lr)
+    scaler = GradScaler()
 
     start_epoch = 1
     if args.ckpt_path is not None:
@@ -54,11 +57,14 @@ def main(args):
         model.train()
         for batch in bar:
             optimizer.zero_grad()
-            loss_dict = handle_batch(batch)
-            loss = loss_dict['loss']
-            loss.backward()
+            with autocast(device_type='cuda', dtype=torch.float16):
+                loss_dict = handle_batch(batch)
+                loss = loss_dict['loss']
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
             _ = clip_grad_norm_(model.parameters(), max_norm=1.0)
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
             tracker.update(**{f'train_{k}': v.item() for k, v in loss_dict.items()})
             s = ', '.join(f'{k.split("_")[1]}: {v.mean():.5f}' for k, v in tracker.items())
             bar.set_postfix_str(s)

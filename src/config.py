@@ -25,7 +25,7 @@ mel = DotDict(
     center=False
 )
 
-channels = 128
+channels = 192
 
 model = DotDict(
     mel_dim=mel_dim,
@@ -36,9 +36,10 @@ model.encoder = DotDict(
     channels=channels,
     out_channels=mel_dim,
     num_head=2,
-    num_layers=4,
+    num_layers=6,
     kernel_size=3,
-    dropout=0.1
+    dropout=0.1,
+    window_size=4
 )
 model.dp = DotDict(
     channels=channels,
@@ -47,7 +48,7 @@ model.dp = DotDict(
     num_layers=3
 )
 model.decoder = DotDict(
-    dim=32,
+    dim=64,
     channels=1,
     dim_mults=(1, 2, 4)
 )

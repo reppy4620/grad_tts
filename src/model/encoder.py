@@ -6,7 +6,7 @@ import torch.nn.functional as F
 
 
 class LayerNorm(nn.Module):
-    def __init__(self, channels=192, eps=1e-4):
+    def __init__(self, channels, eps=1e-4):
         super().__init__()
         self.eps = eps
         self.gamma = torch.nn.Parameter(torch.ones(channels))
@@ -23,7 +23,7 @@ class LayerNorm(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, channels, n_heads, dropout=0., window_size=4):
+    def __init__(self, channels, n_heads, dropout, window_size=4):
         super().__init__()
         assert channels % n_heads == 0
 
@@ -96,7 +96,7 @@ class MultiHeadAttention(nn.Module):
 
 
 class FFN(nn.Module):
-    def __init__(self, channels, scale=4, kernel_size=3, dropout=0.0):
+    def __init__(self, channels, kernel_size, dropout, scale=4):
         super(FFN, self).__init__()
         self.conv_1 = torch.nn.Conv1d(channels, channels*scale, kernel_size, padding=kernel_size//2)
         self.conv_2 = torch.nn.Conv1d(channels*scale, channels, kernel_size, padding=kernel_size//2)
@@ -113,9 +113,9 @@ class FFN(nn.Module):
 
 
 class AttentionLayer(nn.Module):
-    def __init__(self, channels, num_head, dropout):
+    def __init__(self, channels, num_head, dropout, window_size):
         super().__init__()
-        self.attention_layer = MultiHeadAttention(channels, num_head, dropout)
+        self.attention_layer = MultiHeadAttention(channels, num_head, dropout, window_size)
         self.norm = LayerNorm(channels)
         self.dropout = nn.Dropout(dropout)
     
@@ -127,9 +127,9 @@ class AttentionLayer(nn.Module):
 
 
 class FFNLayer(nn.Module):
-    def __init__(self, channels, scale=2, kernel_size=3, dropout=0.1):
+    def __init__(self, channels, kernel_size, dropout, scale=4):
         super().__init__()
-        self.ffn = FFN(channels, scale, kernel_size, dropout)
+        self.ffn = FFN(channels, kernel_size, dropout, scale)
         self.norm = LayerNorm(channels)
         self.dropout = nn.Dropout(dropout)
     
@@ -173,12 +173,13 @@ class PreNet(nn.Module):
     
 
 class EncoderLayer(nn.Module):
-    def __init__(self, channels, num_head, kernel_size, dropout):
+    def __init__(self, channels, num_head, kernel_size, dropout, window_size):
         super().__init__()
         self.attention = AttentionLayer(
             channels,
             num_head,
-            dropout
+            dropout,
+            window_size
         )
         self.ffn = FFNLayer(
             channels,
@@ -192,7 +193,7 @@ class EncoderLayer(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, num_vocab, channels, out_channels, num_head, num_layers, kernel_size, dropout):
+    def __init__(self, num_vocab, channels, out_channels, num_head, num_layers, kernel_size, dropout, window_size):
         super().__init__()
         self.emb = nn.Embedding(num_vocab, channels)
         torch.nn.init.normal_(self.emb.weight, 0.0, channels**-0.5)
@@ -204,7 +205,8 @@ class Encoder(nn.Module):
                 channels,
                 num_head,
                 kernel_size,
-                dropout
+                dropout,
+                window_size
             ) for _ in range(num_layers)
         ])
         self.postnet = nn.Conv1d(channels, out_channels, 1)
