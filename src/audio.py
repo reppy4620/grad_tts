@@ -1,5 +1,4 @@
 import torch
-import numpy as np
 from librosa.filters import mel as librosa_mel_fn
 
 

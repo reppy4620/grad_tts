@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+
 from torch.utils.data import DataLoader
 from pathlib import Path
 from argparse import ArgumentParser
@@ -17,9 +18,8 @@ def main(args):
 
     output_dir = Path(args.output_dir)
     mel_dir = output_dir / 'mel'
-    mean_dir = output_dir / 'mean'
     plot_dir = output_dir / 'plot'
-    [d.mkdir(parents=True, exist_ok=True) for d in [mel_dir, mean_dir, plot_dir]]
+    [d.mkdir(parents=True, exist_ok=True) for d in [mel_dir, plot_dir]]
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = TTSModel(cfg.model).to(device).eval()
@@ -50,9 +50,8 @@ def main(args):
         mel = mel.squeeze().cpu().numpy()
         mean = mean.squeeze().cpu().numpy()
         np.save(mel_dir / f'{bname}.npy', mel)
-        np.save(mean_dir / f'{bname}.npy', mean)
 
-        fig, ax = plt.subplots(2, 1, figsize=(12, 8))
+        _, ax = plt.subplots(2, 1, figsize=(12, 8))
         ax[0].imshow(mean, origin='lower', aspect='auto')
         ax[1].imshow(mel, origin='lower', aspect='auto')
         plt.savefig(plot_dir / f'{bname}.png')

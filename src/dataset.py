@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 
 from pathlib import Path
@@ -5,7 +6,7 @@ from scipy.io import wavfile
 from librosa.util import normalize
 from dataclasses import dataclass
 
-from text import phoneme_to_sequence, phonemes
+from text import text_to_sequence, phonemes
 from audio import mel_spectrogram
 
 
@@ -19,7 +20,7 @@ class Data:
 
 
 class TextMelDataset(torch.utils.data.Dataset):
-    def __init__(self, file_path, wav_dir, lab_dir, hop_size=240, sr=24000, split='|'):
+    def __init__(self, file_path, wav_dir, lab_dir, mel_config, split='|'):
         with open(file_path) as f:
             lines = f.readlines()
             data = list()
@@ -30,48 +31,57 @@ class TextMelDataset(torch.utils.data.Dataset):
         self.wav_dir = Path(wav_dir)
         self.lab_dir = Path(lab_dir)
         
-        self.hop_size = hop_size
-        self.sr = sr
+        self.mel_config = mel_config
+        self.hop_size = mel_config.hop_size
+        self.sampling_rate = mel_config.sampling_rate
 
-    def get_duration(self, filepath, text):
+    def get_duration(self, filepath, label, mel_length):
         with open(filepath, 'r') as f:
             labels = f.readlines()
-        dur = []
-        count = 0
-        sum_quantized_diff_dur = 0
-        extra_dur = 0
-        for t in text.split():
-            if t in phonemes or t in ['^', '$', '?', '_']:
-                start, end, _ = labels[count].split(' ')
-                start, end = int(start), int(end)
-                raw_dur = (end - start) * 1e-7 / (self.hop_size / self.sr) + 0.001 # 浮動小数点数の丸め誤差の影響をなくす
-                quantized_dur = int(raw_dur)
-                sum_quantized_diff_dur += raw_dur - quantized_dur
-                if sum_quantized_diff_dur >= 1.0:
-                    dur.append(quantized_dur - extra_dur + 1)
-                    sum_quantized_diff_dur = 0
-                else:
-                    dur.append(quantized_dur - extra_dur)
-                count += 1
-                extra_dur = 0
-            else: # 特殊記号かつpauやsilでない場合
-                dur.append(1)
-                extra_dur = 1
-        return torch.FloatTensor(dur), int(end * 1e-7 * self.sr + 0.001)
+        durations = []
+        cnt = 0
+        for s in label.split():
+            if s in phonemes or s in ['^', '$', '?', '_']:
+                s, e, _ = labels[cnt].split()
+                s, e = int(s), int(e)
+                dur = (e - s) * 1e-7 / (self.hop_size / self.sampling_rate)
+                durations.append(dur)
+                cnt += 1
+            else:
+                durations.append(1)
+        # adjust length, differences caused by round op.
+        round_durations = np.round(durations)
+        diff_length = np.sum(round_durations) - mel_length
+        if diff_length == 0:
+            return torch.FloatTensor(round_durations)
+        elif diff_length > 0:
+            durations_diff = round_durations - durations
+            d = -1
+        else: # diff_length < 0
+            durations_diff = durations - round_durations
+            d = 1
+        sort_dur_idx = np.argsort(durations_diff)[::-1]
+        for i, idx in enumerate(sort_dur_idx, start=1):
+            round_durations[idx] += d
+            if i == abs(diff_length):
+                break
+        assert np.sum(round_durations) == mel_length
+        return torch.FloatTensor(round_durations)
 
 
     def __getitem__(self, idx):
         d = self.data[idx]
 
-        phonemes = torch.LongTensor(phoneme_to_sequence(d.label.split()))
-        duration, audio_end_idx = self.get_duration(self.lab_dir / f'{d.bname}.lab', d.label)
+        phonemes = torch.LongTensor(text_to_sequence(d.label.split()))
 
-        _, audio = wavfile.read(self.wav_dir / f'{d.bname}.wav')
-        audio = audio / MAX_WAV_VALUE
-        audio = audio[:audio_end_idx]
-        audio = normalize(audio) * 0.95
-        audio = torch.Tensor(audio).unsqueeze(0)
-        mel = mel_spectrogram(audio).squeeze()
+        _, wav = wavfile.read(self.wav_dir / f'{d.bname}.wav')
+        wav = wav / MAX_WAV_VALUE
+        wav = normalize(wav) * 0.95
+        wav = torch.Tensor(wav).unsqueeze(0)
+        mel = mel_spectrogram(wav, **self.mel_config).squeeze()
+        mel_length = mel.size(-1)
+
+        duration = self.get_duration(self.lab_dir / f'{d.bname}.lab', d.label, mel_length)
 
         return (
             d.bname,
@@ -103,7 +113,6 @@ def collate_fn(batch):
     x_pad = torch.zeros(size=(B, x_max_length), dtype=torch.long)
     d_pad = torch.zeros(size=(B, 1, x_max_length), dtype=torch.float)
     y_pad = torch.zeros(size=(B, mel_dim, y_max_length), dtype=torch.float)
-
     for i, (p, d, m) in enumerate(zip(phonemes, durations, mels)):
         x_l, d_l, m_l = x_lengths[i], x_lengths[i], y_lengths[i]
         x_pad[i, :x_l] = p

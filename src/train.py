@@ -22,10 +22,10 @@ def main(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = TTSModel(cfg.model).to(device)
 
-    train_ds = TextMelDataset(args.train_file, args.wav_dir, args.lab_dir)
+    train_ds = TextMelDataset(args.train_file, args.wav_dir, args.lab_dir, cfg.mel)
     train_dl = DataLoader(train_ds, batch_size=cfg.train.batch_size, shuffle=True, collate_fn=collate_fn, num_workers=4)
 
-    valid_ds = TextMelDataset(args.valid_file, args.wav_dir, args.lab_dir)
+    valid_ds = TextMelDataset(args.valid_file, args.wav_dir, args.lab_dir, cfg.mel)
     valid_dl = DataLoader(valid_ds, batch_size=cfg.train.batch_size, shuffle=False, collate_fn=collate_fn, num_workers=4)
 
     optimizer = optim.AdamW(model.parameters(), lr=cfg.optimizer.lr)

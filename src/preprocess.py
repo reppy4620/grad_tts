@@ -13,7 +13,6 @@ def main(args):
     text_list = list()
     for lab_file in tqdm(lab_files, total=len(lab_files)):
         bname = lab_file.stem
-
         with open(lab_file, 'r') as f:
             fullcontext = f.readlines()        
         label = pp_symbols(fullcontext)
