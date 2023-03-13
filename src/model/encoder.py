@@ -49,17 +49,13 @@ class MultiHeadAttention(nn.Module):
 
         B, C, T = q.size()
         query = q.view(B, self.n_heads, self.inter_channels, T).transpose(2, 3)
-        key = k.view(B, self.n_heads, self.inter_channels, T).transpose(2, 3)
+        key   = k.view(B, self.n_heads, self.inter_channels, T).transpose(2, 3)
         value = v.view(B, self.n_heads, self.inter_channels, T).transpose(2, 3)
 
         scores = torch.matmul(query / self.scale, key.transpose(-2, -1))
 
-        pad_length = T - (self.window_size + 1)
-        if pad_length < 0:
-            pad_length = 0
-        start = (self.window_size + 1) - T
-        if start < 0:
-            start = 0
+        pad_length = max(0, T - (self.window_size + 1))
+        start = max(0, (self.window_size + 1) - T)
         end = start + 2 * T - 1
 
         pad_rel_emb = F.pad(self.emb_rel_k, [0, 0, pad_length, pad_length, 0, 0])

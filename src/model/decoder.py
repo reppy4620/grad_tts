@@ -22,15 +22,6 @@ def default(val, d):
     return d() if isfunction(d) else d
 
 
-def num_to_groups(num, divisor):
-    groups = num // divisor
-    remainder = num % divisor
-    arr = [divisor] * groups
-    if remainder > 0:
-        arr.append(remainder)
-    return arr
-
-
 class Residual(nn.Module):
     def __init__(self, fn):
         super().__init__()
@@ -190,7 +181,7 @@ class Unet(nn.Module):
         self.channels = channels
         input_channels = channels * 2
 
-        self.init_conv = nn.Conv2d(input_channels, dim, 1, padding=0) # changed to 1 and 0 from 7,3
+        self.init_conv = nn.Conv2d(input_channels, dim, 1)
 
         dims = [dim, *map(lambda m: dim * m, dim_mults)]
         in_out = list(zip(dims[:-1], dims[1:]))

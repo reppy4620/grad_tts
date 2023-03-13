@@ -27,7 +27,7 @@ def main(args):
     ckpt = torch.load(args.ckpt_path)
     model.load_state_dict(ckpt['model'])
 
-    ds = TextMelDataset(args.text_file, args.wav_dir, args.lab_dir)
+    ds = TextMelDataset(args.text_file, args.wav_dir, args.lab_dir, cfg.mel)
     dl = DataLoader(ds, batch_size=1, shuffle=False, collate_fn=collate_fn)
 
     def to_device(*args):
