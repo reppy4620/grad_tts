@@ -56,7 +56,6 @@ def main(args):
         ax[1].imshow(mel, origin='lower', aspect='auto')
         plt.savefig(plot_dir / f'{bname}.png')
         plt.close()
-        break
 
 
 if __name__ == '__main__':
